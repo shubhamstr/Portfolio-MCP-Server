@@ -1,0 +1,53 @@
+name: Deploy to EC2
+
+on:
+  # push:
+  #   branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and Push Docker image
+        run: |
+          REPO_URL="${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'portfolio-mcp-server' }}"
+          echo "ECR Repository URL: $REPO_URL"
+          docker build -t "$REPO_URL:latest" .
+          docker push "$REPO_URL:latest"
+
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPO_URL: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'portfolio-mcp-server' }}
+          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        with:
+          host: ${{ secrets.EC2_HOST || secrets.VPS_HOST }}
+          username: ${{ secrets.EC2_USER || secrets.VPS_USER }}
+          key: ${{ secrets.EC2_SSH_KEY || secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
+          envs: ECR_REGISTRY,REPO_URL,AWS_REGION,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY
+          script: |
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            docker pull $REPO_URL:latest
+            docker stop weather-mcp || true
+            docker rm weather-mcp || true
+            docker run -d --name weather-mcp --restart unless-stopped -p 9001:9001 $REPO_URL:latest
