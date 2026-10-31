@@ -31,22 +31,25 @@ jobs:
           docker build -t "$REPO_URL:latest" .
           docker push "$REPO_URL:latest"
 
+      - name: Get ECR Login Password
+        id: ecr-token
+        run: |
+          echo "password=$(aws ecr get-login-password --region ${{ secrets.AWS_REGION || 'us-east-1' }})" >> $GITHUB_OUTPUT
+
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v1.0.3
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPO_URL: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'portfolio-mcp-server' }}
-          AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          ECR_PASSWORD: ${{ steps.ecr-token.outputs.password }}
         with:
           host: ${{ secrets.EC2_HOST || secrets.VPS_HOST }}
           username: ${{ secrets.EC2_USER || secrets.VPS_USER }}
           key: ${{ secrets.EC2_SSH_KEY || secrets.VPS_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
-          envs: ECR_REGISTRY,REPO_URL,AWS_REGION,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY
+          envs: ECR_REGISTRY,REPO_URL,ECR_PASSWORD
           script: |
-            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $REPO_URL:latest
             docker stop portfolio-mcp || true
             docker rm portfolio-mcp || true
