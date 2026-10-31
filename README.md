@@ -1,10 +1,12 @@
-# 🌤️ Weather MCP Server
+# 💼 Portfolio MCP Server
 
-A **Model Context Protocol (MCP) server** that exposes real-time US weather data from the [National Weather Service (NWS) API](https://www.weather.gov/documentation/services-web-api) as tools for AI assistants like Claude.
+A **Model Context Protocol (MCP) server** that exposes personal portfolio details, professional work experience, technical skills (Frontend, Backend, Databases, Cloud, Tools, Concepts), featured projects, and contact information as interactive tools for AI assistants like Claude, Cursor, and custom agent systems.
+
+Fetches live portfolio data directly from [db.json](https://raw.githubusercontent.com/shubhamstr/New-Portfolio/refs/heads/main/web/src/data/db.json) with intelligent in-memory caching.
 
 Supports both:
-- **stdio** — for local Claude Desktop usage (no server needed)
-- **Streamable HTTP** — for HTTP-based integrations
+- **stdio** — for local AI desktop clients (Claude Desktop, Cursor, etc.)
+- **Streamable HTTP** — for remote HTTP-based and cloud integrations
 
 ---
 
@@ -12,6 +14,7 @@ Supports both:
 
 - [Features](#-features)
 - [Architecture](#-architecture)
+- [Data Source](#-data-source)
 - [Tools Reference](#-tools-reference)
 - [Prerequisites](#-prerequisites)
 - [Local Setup](#-local-setup)
@@ -19,16 +22,20 @@ Supports both:
 - [Connect to Claude Desktop](#-connect-to-claude-desktop)
 - [Project Structure](#-project-structure)
 - [Tech Stack](#-tech-stack)
+- [License](#-license)
 
 ---
 
 ## ✨ Features
 
-- 🌩️ **Weather Alerts** — real-time active alerts for any US state
-- 🌡️ **Weather Forecast** — multi-day forecast by GPS coordinates
-- 🔀 **Dual transport** — auto-selects stdio or HTTP based on environment
-- 🔁 **Stateful sessions** — each HTTP client gets an isolated MCP session
-- ❤️ **Health endpoint** — `/health` for uptime monitoring
+- 👤 **Profile & Bio** — Shubham Sutar's background, full-stack title (5+ years experience), core stack, and quick links
+- ⚡ **Technical Skills** — live breakdown across Frontend, Backend, Databases, Cloud & DevOps, Developer Tools, and Core Concepts with proficiency ratings
+- 🏢 **Work Experience** — career overview, key milestones, open-source packages, and AI developer tools
+- 🚀 **Projects Showcase** — 11 featured, tools, and web projects with live demos, npm/VS Code links, GitHub repos, and tech stacks
+- 📬 **Contact & Socials** — complete list of developer profile links (GitHub, LinkedIn, Docker Hub, LeetCode, Resume, Twitter, etc.)
+- 🔀 **Dual Transport** — automatically runs in stdio mode or Streamable HTTP mode based on environment
+- 🔁 **Stateful HTTP Sessions** — isolated session handling with `/mcp` SSE streaming support
+- ❤️ **Health Endpoint** — `/health` endpoint for uptime monitoring and data source verification
 
 ---
 
@@ -36,7 +43,7 @@ Supports both:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     Weather MCP Server                      │
+│                    Portfolio MCP Server                     │
 │                                                             │
 │  ┌──────────────┐         ┌──────────────────────────────┐  │
 │  │  stdio mode  │         │        HTTP mode             │  │
@@ -46,47 +53,100 @@ Supports both:
 │         └──────────┬─────────────────────┘                  │
 │                    ▼                                        │
 │            ┌───────────────┐                                │
-│            │  McpServer    │                                │
-│            │  registerTools│                                │
+│            │   McpServer   │                                │
+│            │ registerTools │                                │
 │            └───────┬───────┘                                │
 │                    ▼                                        │
 │            ┌───────────────┐                                │
-│            │  NWS REST API │                                │
-│            │  api.weather.gov                               │
+│            │ Remote db.json│                                │
+│            │  (GitHub Raw  │                                │
+│            │  with Cache)  │                                │
 │            └───────────────┘                                │
 └─────────────────────────────────────────────────────────────┘
 
 Clients:
-  Claude Desktop  ──► stdio (local)
-  HTTP Clients    ──► HTTP :9001/mcp
+  Claude Desktop / Cursor  ──► stdio (local)
+  HTTP / Cloud Clients     ──► HTTP :9001/mcp
 ```
+
+---
+
+## 🌐 Data Source
+
+Portfolio data is fetched dynamically from:
+```
+https://raw.githubusercontent.com/shubhamstr/New-Portfolio/refs/heads/main/web/src/data/db.json
+```
+- **Live Sync**: Any updates made to `db.json` in your portfolio repository are automatically reflected in your MCP server.
+- **In-Memory Caching**: Cached for 5 minutes (TTL) to avoid redundant network calls and rate limiting while keeping data fresh.
+- **Configurable**: Can be overridden via the `PORTFOLIO_DATA_URL` environment variable.
 
 ---
 
 ## 🛠️ Tools Reference
 
-### `get-alerts`
-Get active weather alerts for a US state.
+### `get-profile`
+Returns Shubham Sutar's profile overview, title, 5+ years experience summary, core tech stacks, and resume link.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `state` | `string` | Two-letter US state code (e.g. `CA`, `NY`, `TX`) |
-
-**Example prompt:** *"Are there any weather alerts in Florida?"*
+- **Parameters:** None
+- **Example prompt:** *"Tell me about Shubham Sutar and his background."*
 
 ---
 
-### `get-forecast`
-Get a multi-day weather forecast for any US location by GPS coordinates.
+### `get-skills`
+Returns technical skills from `db.json` with proficiency percentage levels.
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `latitude` | `number` | Latitude between -90 and 90 |
-| `longitude` | `number` | Longitude between -180 and 180 |
+- **Parameters:**
+  | Parameter | Type | Description |
+  |-----------|------|-------------|
+  | `category` | `string` *(optional)* | Filter by category: `frontend`, `backend`, `database`, `cloud`, `tools`, `concepts`, or `all` |
 
-**Example prompt:** *"What's the weather forecast for New York City?"*
+- **Example prompt:** *"What are Shubham's backend and database skills?"*
 
-> **Note:** The NWS API only covers the **continental United States**. It does not support international coordinates.
+---
+
+### `get-projects`
+Returns portfolio projects (featured, developer tools, and web platforms) with descriptions, tech stacks, live demos, and GitHub links.
+
+- **Parameters:**
+  | Parameter | Type | Description |
+  |-----------|------|-------------|
+  | `type` | `string` *(optional)* | Filter by project type: `featured`, `tools`, `others`, or `all` |
+  | `technology` | `string` *(optional)* | Filter by technology keyword (e.g. `React.js`, `Gemini`, `Docker`, `Express.js`) |
+
+- **Example prompt:** *"Show me Shubham's AI tools and projects built with React or Node.js."*
+
+---
+
+### `get-experience`
+Returns career overview, milestones, engineering accomplishments, and link to full resume.
+
+- **Parameters:** None
+- **Example prompt:** *"What is Shubham's work experience and key engineering achievements?"*
+
+---
+
+### `get-contact`
+Returns direct links to resume, GitHub, LinkedIn, Twitter/X, Docker Hub, LeetCode, Stack Overflow, Dev.to, Medium, CodePen, and more.
+
+- **Parameters:** None
+- **Example prompt:** *"Give me Shubham's contact details and GitHub profile link."*
+
+---
+
+### `get-full-portfolio`
+Returns the entire portfolio in one comprehensive markdown response.
+
+- **Parameters:** None
+- **Example prompt:** *"Give me a full summary of Shubham's portfolio."*
+
+---
+
+### `get-raw-data`
+Returns the raw JSON data object directly fetched from `db.json`.
+
+- **Parameters:** None
+- **Example prompt:** *"Show me the raw portfolio database JSON."*
 
 ---
 
@@ -100,8 +160,8 @@ Get a multi-day weather forecast for any US location by GPS coordinates.
 ## 💻 Local Setup
 
 ```bash
-# 1. Clone the repo
-git clone https://github.com/YOUR_USERNAME/Portfolio-MCP-Server.git
+# 1. Clone the repository
+git clone https://github.com/shubhamstr/Portfolio-MCP-Server.git
 cd Portfolio-MCP-Server
 
 # 2. Install dependencies
@@ -114,7 +174,7 @@ npm run build
 npm start
 ```
 
-### Run in HTTP mode locally
+### Run in HTTP Mode Locally
 
 ```bash
 # Windows PowerShell
@@ -124,7 +184,9 @@ $env:PORT=9001; node build/index.js
 PORT=9001 node build/index.js
 ```
 
-### Smoke test HTTP mode
+### Smoke Test HTTP Mode
+
+Verify the server is running and responds to MCP JSON-RPC protocol requests:
 
 ```bash
 # PowerShell
@@ -141,7 +203,13 @@ curl -X POST http://localhost:9001/mcp \
 Expected response:
 ```
 event: message
-data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"weather","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true}},"serverInfo":{"name":"portfolio-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+```
+
+Health check endpoint:
+```bash
+curl http://localhost:9001/health
+# {"status":"ok","server":"portfolio-mcp","source":"https://raw.githubusercontent.com/shubhamstr/New-Portfolio/refs/heads/main/web/src/data/db.json"}
 ```
 
 ---
@@ -150,9 +218,10 @@ data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listCh
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `PORT` | *(unset)* | Set to any port number (e.g. `9001`) to enable HTTP mode. If unset, stdio mode is used. |
+| `PORT` | *(unset)* | Set to any port number (e.g. `9001`) to enable HTTP transport mode. If unset, stdio mode is used. |
+| `PORTFOLIO_DATA_URL` | `https://raw.githubusercontent.com/.../db.json` | Remote JSON URL for portfolio data. |
 
-Copy `.env.example` to `.env` and adjust:
+Copy `.env.example` to `.env` if desired:
 ```bash
 cp .env.example .env
 ```
@@ -161,32 +230,36 @@ cp .env.example .env
 
 ## 🖥️ Connect to Claude Desktop
 
-### Option 1: stdio mode (Local, no port needed)
+### Option 1: stdio Mode (Local, no port needed)
 
 Open your Claude Desktop config file:
 
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-Add the following:
+Add the following under `mcpServers`:
 
 ```json
 {
   "mcpServers": {
-    "weather": {
+    "portfolio": {
       "command": "node",
-      "args": ["C:/absolute/path/to/Portfolio-MCP-Server/build/index.js"]
+      "args": ["W:/shubham/personal/Portfolio-MCP-Server/build/index.js"]
     }
   }
 }
 ```
 
-### Option 2: HTTP mode (Port 9001)
+*(Note: Replace with your absolute path to `build/index.js` using forward slashes).*
+
+### Option 2: HTTP Mode (Port 9001)
+
+Start the server with `PORT=9001`, then configure Claude Desktop:
 
 ```json
 {
   "mcpServers": {
-    "weather": {
+    "portfolio": {
       "type": "http",
       "url": "http://localhost:9001/mcp"
     }
@@ -194,7 +267,7 @@ Add the following:
 }
 ```
 
-Restart Claude Desktop. The `get-alerts` and `get-forecast` tools will appear.
+Restart Claude Desktop. The portfolio tools (`get-profile`, `get-skills`, `get-projects`, `get-experience`, `get-contact`, `get-full-portfolio`, `get-raw-data`) will be available.
 
 ---
 
@@ -203,12 +276,12 @@ Restart Claude Desktop. The `get-alerts` and `get-forecast` tools will appear.
 ```
 Portfolio-MCP-Server/
 ├── src/
-│   └── index.ts          # Main server — tools, transports, entry point
-├── build/                # Compiled JS output (git-ignored)
+│   └── index.ts          # Main MCP server — tools, data fetcher, HTTP & stdio transports
+├── build/                # Compiled JavaScript output (git-ignored)
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml    # GitHub Actions workflow
-├── Dockerfile            # Multi-stage Docker build
+│       └── deploy.yml    # CI/CD deployment workflow (ECR & EC2 / VPS)
+├── Dockerfile            # Multi-stage production Docker build
 ├── .dockerignore
 ├── .env.example          # Environment variable template
 ├── .gitignore
@@ -223,12 +296,12 @@ Portfolio-MCP-Server/
 
 | Technology | Purpose |
 |------------|---------|
-| [TypeScript](https://www.typescriptlang.org/) | Language |
-| [Node.js 22](https://nodejs.org/) | Runtime |
-| [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | MCP server framework |
-| [Express](https://expressjs.com/) | HTTP server for remote transport |
-| [Zod](https://zod.dev/) | Input schema validation |
-| [NWS API](https://www.weather.gov/documentation/services-web-api) | Weather data source (free, no API key) |
+| [TypeScript](https://www.typescriptlang.org/) | Language & type safety |
+| [Node.js 22](https://nodejs.org/) | Modern JavaScript runtime |
+| [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) | Official Model Context Protocol SDK |
+| [Express](https://expressjs.com/) | Web server for Streamable HTTP transport |
+| [Zod](https://zod.dev/) | Schema definition & input validation for tools |
+| [Docker](https://www.docker.com/) | Containerization |
 
 ---
 

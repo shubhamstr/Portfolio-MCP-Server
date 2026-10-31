@@ -48,6 +48,6 @@ jobs:
           script: |
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $REPO_URL:latest
-            docker stop weather-mcp || true
-            docker rm weather-mcp || true
-            docker run -d --name weather-mcp --restart unless-stopped -p 9001:9001 $REPO_URL:latest
+            docker stop portfolio-mcp || true
+            docker rm portfolio-mcp || true
+            docker run -d --name portfolio-mcp --restart unless-stopped -p 9001:9001 $REPO_URL:latest
