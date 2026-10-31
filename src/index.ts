@@ -8,11 +8,20 @@ import { randomUUID } from 'node:crypto';
 const NWS_API_BASE = "https://api.weather.gov";
 const USER_AGENT = "weather-app/1.0";
 
-// Server instance - defines the server's metadata
-const server = new McpServer({
-  name: 'weather',
-  version: '1.0.0',
-});
+// ─── Server factory ──────────────────────────────────────────────────────────
+// Each HTTP session gets its own McpServer instance to avoid shared state.
+function createServer(): McpServer {
+  const srv = new McpServer({
+    name: 'weather',
+    version: '1.0.0',
+  });
+
+  registerTools(srv);
+  return srv;
+}
+
+// Singleton used for stdio transport
+const server = createServer();
 
 
 // Helper function for making NWS API requests
@@ -85,6 +94,8 @@ interface ForecastResponse {
 
 
 
+// ─── Tool registration ───────────────────────────────────────────────────────
+function registerTools(server: McpServer) {
 // Register weather tools
 server.tool(
   "get-alerts",
@@ -217,14 +228,78 @@ server.tool(
     };
   },
 );
+} // end registerTools
 
-async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Weather MCP Server running on stdio");
+// ─── Transport selection ───────────────────────────────────────────────────
+// Run with HTTP transport when PORT env var is set (e.g. on your VPS),
+// otherwise fall back to stdio for local Claude Desktop usage.
+
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : null;
+
+async function startHttp(port: number) {
+  const app = express();
+  app.use(express.json());
+
+  // Map of sessionId → transport (for stateful resumability)
+  const sessions = new Map<string, StreamableHTTPServerTransport>();
+
+  // Single MCP endpoint — handles initialize, POST requests, and GET SSE stream
+  app.all('/mcp', async (req: Request, res: Response) => {
+    try {
+      const sessionId = req.headers['mcp-session-id'] as string | undefined;
+
+      // Re-use existing session transport if we have one
+      if (sessionId && sessions.has(sessionId)) {
+        const transport = sessions.get(sessionId)!;
+        await transport.handleRequest(req, res, req.body);
+        return;
+      }
+
+      // New session: only POST with initialize is allowed to start one
+      if (req.method !== 'POST') {
+        res.status(400).json({
+          jsonrpc: '2.0',
+          error: { code: -32000, message: 'New session must start with POST initialize' },
+          id: null,
+        });
+        return;
+      }
+
+      const newSessionId = randomUUID();
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => newSessionId,
+        onsessioninitialized: (id) => { sessions.set(id, transport); },
+      });
+
+      transport.onclose = () => sessions.delete(newSessionId);
+
+      // Bind a fresh server instance to this session
+      const sessionServer = createServer();
+      await sessionServer.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      console.error('MCP request error:', err);
+      if (!res.headersSent) res.status(500).json({ error: 'Internal server error' });
+    }
+  });
+
+  // Health-check endpoint (useful for uptime monitors)
+  app.get('/health', (_req, res) => res.json({ status: 'ok', server: 'weather-mcp' }));
+
+  app.listen(port, '0.0.0.0', () => {
+    console.log(`Weather MCP Server listening on http://0.0.0.0:${port}/mcp`);
+  });
 }
 
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1);
-});
+async function startStdio() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error('Weather MCP Server running on stdio');
+}
+
+// ─── Entry point ────────────────────────────────────────────────────────────
+if (PORT) {
+  startHttp(PORT).catch((err) => { console.error(err); process.exit(1); });
+} else {
+  startStdio().catch((err) => { console.error(err); process.exit(1); });
+}
