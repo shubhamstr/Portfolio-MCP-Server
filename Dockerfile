@@ -20,9 +20,9 @@ RUN npm ci --omit=dev
 # Copy built output
 COPY --from=builder /app/build ./build
 
-EXPOSE 3000
+EXPOSE 9001
 
-ENV PORT=3000
+ENV PORT=9001
 
 CMD ["node", "build/index.js"]
 
