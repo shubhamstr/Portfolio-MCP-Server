@@ -308,3 +308,9 @@ Portfolio-MCP-Server/
 ## 📄 License
 
 ISC
+
+---
+
+## M8ven Badge
+
+[![M8ven Score](https://m8ven.ai/badge/mcp/shubhamstr-portfolio-mcp-server-w9w93m?v=89d62370406220d2a0570c45490f9196)](https://m8ven.ai/mcp/shubhamstr-portfolio-mcp-server-w9w93m?s=readme)
