@@ -278,14 +278,33 @@ Restart Claude Desktop. The portfolio tools (`get-profile`, `get-skills`, `get-p
 ```
 Portfolio-MCP-Server/
 ├── src/
-│   └── index.ts          # Main MCP server — tools, data fetcher, HTTP & stdio transports
-├── build/                # Compiled JavaScript output (git-ignored)
+│   ├── config/
+│   │   └── index.ts          # Server config & environment variables (PORT, MCP_API_KEY, etc.)
+│   ├── types/
+│   │   └── index.ts          # TypeScript interfaces (DbData, SkillItem, ProjectItem, etc.)
+│   ├── services/
+│   │   └── portfolioService.ts # Remote data fetching & in-memory caching
+│   ├── utils/
+│   │   └── formatters.ts     # Markdown content formatters for skills, projects, and bio
+│   ├── middleware/
+│   │   └── auth.ts           # Timing-safe API key authentication middleware
+│   ├── tools/
+│   │   └── index.ts          # MCP tools definition and registration
+│   ├── routes/
+│   │   ├── health.ts         # GET /health health-check endpoint
+│   │   └── mcp.ts            # ALL /mcp endpoint with session management & SSE
+│   ├── server/
+│   │   ├── mcpServer.ts      # McpServer instance factory
+│   │   ├── httpServer.ts     # Express HTTP server setup & startup
+│   │   └── stdioServer.ts    # Stdio transport runner
+│   └── index.ts              # Clean main entry point & re-exports
+├── build/                    # Compiled JavaScript output (git-ignored)
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml    # CI/CD deployment workflow (ECR & EC2 / VPS)
-├── Dockerfile            # Multi-stage production Docker build
+│       └── deploy.yml        # CI/CD deployment workflow (ECR & EC2 / VPS)
+├── Dockerfile                # Multi-stage production Docker build
 ├── .dockerignore
-├── .env.example          # Environment variable template
+├── .env.example              # Environment variable template
 ├── .gitignore
 ├── package.json
 ├── tsconfig.json
