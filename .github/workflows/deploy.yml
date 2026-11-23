@@ -42,15 +42,32 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPO_URL: ${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY || 'portfolio-mcp-server' }}
           ECR_PASSWORD: ${{ steps.ecr-token.outputs.password }}
+          PORT: ${{ secrets.PORT || '9001' }}
+          MCP_API_KEY: ${{ secrets.MCP_API_KEY || secrets.API_KEY }}
+          PORTFOLIO_DATA_URL: ${{ secrets.PORTFOLIO_DATA_URL }}
+          ENV_FILE: ${{ secrets.ENV_FILE }}
         with:
           host: ${{ secrets.EC2_HOST || secrets.VPS_HOST }}
           username: ${{ secrets.EC2_USER || secrets.VPS_USER }}
           key: ${{ secrets.EC2_SSH_KEY || secrets.VPS_SSH_KEY }}
           port: ${{ secrets.EC2_PORT || 22 }}
-          envs: ECR_REGISTRY,REPO_URL,ECR_PASSWORD
+          envs: ECR_REGISTRY,REPO_URL,ECR_PASSWORD,PORT,MCP_API_KEY,PORTFOLIO_DATA_URL,ENV_FILE
           script: |
             echo "$ECR_PASSWORD" | docker login --username AWS --password-stdin $ECR_REGISTRY
             docker pull $REPO_URL:latest
             docker stop portfolio-mcp || true
             docker rm portfolio-mcp || true
-            docker run -d --name portfolio-mcp --restart unless-stopped -p 9001:9001 $REPO_URL:latest
+
+            # Generate .env file
+            if [ -n "$ENV_FILE" ]; then
+              echo "$ENV_FILE" > .env
+            else
+              echo "PORT=${PORT:-9001}" > .env
+              echo "MCP_API_KEY=${MCP_API_KEY}" >> .env
+              if [ -n "$PORTFOLIO_DATA_URL" ]; then
+                echo "PORTFOLIO_DATA_URL=${PORTFOLIO_DATA_URL}" >> .env
+              fi
+            fi
+            chmod 600 .env
+
+            docker run -d --name portfolio-mcp --restart unless-stopped --env-file .env -p ${PORT:-9001}:${PORT:-9001} $REPO_URL:latest
