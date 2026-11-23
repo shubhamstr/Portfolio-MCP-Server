@@ -2,8 +2,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
-import express, { Request, Response } from 'express';
-import { randomUUID } from 'node:crypto';
+import express, { Request, Response, NextFunction } from 'express';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 
 // ─── Data Source & Types ───────────────────────────────────────────────────────
 
@@ -427,13 +427,54 @@ function registerTools(server: McpServer) {
   );
 }
 
-// ─── Transport Selection ─────────────────────────────────────────────────────
+// ─── Transport & Auth Selection ──────────────────────────────────────────────
 
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : null;
+const MCP_API_KEY = process.env.MCP_API_KEY || process.env.API_KEY || '';
+
+/**
+ * Validates requests using timing-safe API key comparison.
+ * Supports:
+ * - Header: 'x-api-key'
+ * - Header: 'authorization: Bearer <key>'
+ * - Query param: ?apiKey=... or ?api_key=... or ?key=...
+ */
+function validateApiKey(req: Request): boolean {
+  if (!MCP_API_KEY) {
+    // When no API key is configured, allow requests (open access mode)
+    return true;
+  }
+
+  const authHeader = req.headers['authorization'];
+  const bearerKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : undefined;
+  const headerKey = req.headers['x-api-key'] as string | undefined;
+  const queryKey = (req.query.apiKey || req.query.api_key || req.query.key) as string | undefined;
+
+  const candidate = headerKey || bearerKey || queryKey;
+  if (!candidate) {
+    return false;
+  }
+
+  const bufProvided = Buffer.from(candidate);
+  const bufExpected = Buffer.from(MCP_API_KEY);
+
+  if (bufProvided.length !== bufExpected.length) {
+    return false;
+  }
+
+  return timingSafeEqual(bufProvided, bufExpected);
+}
 
 async function startHttp(port: number) {
   const app = express();
   app.use(express.json());
+
+  // Log API key protection status
+  if (MCP_API_KEY) {
+    console.log('🔒 API Key authentication enabled for /mcp endpoint');
+  } else {
+    console.warn('⚠️  No MCP_API_KEY set. The /mcp endpoint is accessible without authentication.');
+  }
 
   // Pre-fetch portfolio data on server boot
   try {
@@ -446,8 +487,24 @@ async function startHttp(port: number) {
   // Map of sessionId → transport (for stateful resumability)
   const sessions = new Map<string, StreamableHTTPServerTransport>();
 
+  // API key authorization middleware for /mcp
+  const requireApiKey = (req: Request, res: Response, next: NextFunction) => {
+    if (!validateApiKey(req)) {
+      res.status(401).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Unauthorized: Missing or invalid API key. Provide via x-api-key header, Authorization: Bearer, or ?apiKey= query param.',
+        },
+        id: null,
+      });
+      return;
+    }
+    next();
+  };
+
   // Single MCP endpoint — handles initialize, POST requests, and GET SSE stream
-  app.all('/mcp', async (req: Request, res: Response) => {
+  app.all('/mcp', requireApiKey, async (req: Request, res: Response) => {
     try {
       const sessionId = req.headers['mcp-session-id'] as string | undefined;
 

@@ -186,17 +186,18 @@ PORT=9001 node build/index.js
 
 ### Smoke Test HTTP Mode
 
-Verify the server is running and responds to MCP JSON-RPC protocol requests:
+Verify the server is running and responds to MCP JSON-RPC protocol requests (include `x-api-key` header if `MCP_API_KEY` is configured):
 
 ```bash
 # PowerShell
 $body = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}'
-Invoke-RestMethod -Uri http://localhost:9001/mcp -Method POST -ContentType "application/json" -Body $body -Headers @{"Accept"="application/json, text/event-stream"}
+Invoke-RestMethod -Uri http://localhost:9001/mcp -Method POST -ContentType "application/json" -Body $body -Headers @{"Accept"="application/json, text/event-stream"; "x-api-key"="your-secret-api-key"}
 
 # curl (Linux / macOS)
 curl -X POST http://localhost:9001/mcp \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
+  -H "x-api-key: your-secret-api-key" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}'
 ```
 
@@ -220,6 +221,7 @@ curl http://localhost:9001/health
 |----------|---------|-------------|
 | `PORT` | *(unset)* | Set to any port number (e.g. `9001`) to enable HTTP transport mode. If unset, stdio mode is used. |
 | `PORTFOLIO_DATA_URL` | `https://raw.githubusercontent.com/.../db.json` | Remote JSON URL for portfolio data. |
+| `MCP_API_KEY` | *(unset)* | Optional API key to secure the `/mcp` HTTP endpoint. If set, clients must authenticate via `x-api-key`, `Authorization: Bearer <key>`, or `?apiKey=<key>`. |
 
 Copy `.env.example` to `.env` if desired:
 ```bash
